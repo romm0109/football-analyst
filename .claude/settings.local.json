@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.football-data.org)",
+      "WebFetch(domain:www.api-football.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:statsbomb.com)"
+    ]
+  }
+}
