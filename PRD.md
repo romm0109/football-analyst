@@ -6,9 +6,9 @@ The Generative Tactical Analyst is an AI-powered football analytics platform tha
 
 The platform addresses a critical pain point in modern football: while clubs generate millions of data points per match (xG, PPDA, Pass Networks), 99% of coaches are not data scientists. Existing tools like Wyscout or Opta rely on pre-set dashboards with rigid filtering options, forcing analysts to spend 20+ hours weekly manually tagging video to find specific insights.
 
-Our MVP delivers a Chat Interface combined with four tactical dashboards (Pressing Triggers, Passing Sonar, Momentum Wave, Defensive Skeleton), all powered by a **pluggable data adapter architecture** on the server side. The client consumes processed data from our API, allowing us to switch data providers without client changes.
+Our MVP delivers a Chat Interface combined with tactical dashboards, all powered by a **pluggable data adapter architecture** in the NestJS server. The client consumes processed data from our API, allowing us to switch providers without client changes.
 
-**Key Architectural Decision:** We will NOT use mock data. Instead, we build an architecture-first approach where the server abstracts external API calls, making it easy to swap providers as needed.
+**Key Architectural Decision:** We will NOT use mock data. The NestJS server will keep the adapter abstraction, and the first concrete provider will be a dedicated Python Understat service (using the `understat` package), so we can add future providers without changing client code.
 
 ---
 
@@ -80,6 +80,7 @@ Our MVP delivers a Chat Interface combined with four tactical dashboards (Pressi
 | React client application | ✅ In Scope | P0 |
 | Data adapter interface (IFootballAdapter) | ✅ In Scope | P0 |
 | Server-side adapter implementations | ✅ In Scope | P0 |
+| Python Understat service (microservice) | In Scope | P0 |
 | Query object abstraction layer | ✅ In Scope | P0 |
 | TypeScript type definitions for all entities | ✅ In Scope | P0 |
 | React + Vite client setup | ✅ In Scope | P0 |
@@ -89,6 +90,7 @@ Our MVP delivers a Chat Interface combined with four tactical dashboards (Pressi
 
 | Feature | Status | Priority |
 |---------|--------|----------|
+| Python Understat service integration | In Scope | P0 |
 | football-data.org API integration | ❌ Out of Scope | Future |
 | StatsBomb API integration | ❌ Out of Scope | Future |
 | Opta API integration | ❌ Out of Scope | Future |
@@ -136,9 +138,9 @@ Our MVP delivers a Chat Interface combined with four tactical dashboards (Pressi
 *Example:* The Defensive Skeleton network graph shows thin/long lines between center-backs, revealing a stretched defense that can be exploited through the middle.
 
 **Story 6: The Data Switch**
-> As a Technical Lead, I want to switch from mock data to a real API without changing the UI, so that the platform remains functional as data sources evolve.
+> As a Technical Lead, I want to switch data providers without changing the UI, so that the platform remains functional as data sources evolve.
 
-*Example:* Configuration change swaps the MockAdapter for FootballDataAdapter; all dashboards continue working identically.
+*Example:* Configuration change swaps `UnderstatPythonAdapter` for `StatsBombAdapter`; all dashboards continue working identically.
 
 ### Technical User Stories
 
@@ -355,9 +357,10 @@ football-analyst/
 
 ### Architecture Overview
 
-This is an **NX Monorepo** with two applications:
-- **Server**: NestJS (handles API calls, data transformation, adapters)
+This is an **NX Monorepo** with two core applications plus one data microservice:
+- **Server**: NestJS (handles API calls, query resolution, adapter orchestration)
 - **Client**: React + Vite (UI, dashboards, visualizations)
+- **Understat Service**: Python service wrapping `amosbastian/understat` for data retrieval
 
 ### Server Technologies (NestJS)
 
@@ -368,6 +371,17 @@ This is an **NX Monorepo** with two applications:
 | axios | 1.x | HTTP client for external APIs |
 | class-validator | 0.14.x | Request validation |
 | Swagger/OpenAPI | 7.x | API documentation |
+
+
+### Understat Service Technologies (Python)
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Python | 3.11+ | Runtime |
+| FastAPI | 0.11x | Service API layer |
+| understat (`amosbastian/understat`) | latest | Understat data client |
+| uvicorn | 0.2x | ASGI server |
+| pydantic | 2.x | Validation and response models |
 
 ### Client Technologies (React)
 
@@ -400,8 +414,8 @@ This is an **NX Monorepo** with two applications:
 
 | Service | Data Type | Status |
 |---------|-----------|--------|
-| Understat | xG, shots, coordinates (7 leagues) | ✅ MVP |
-| Free API tier | Basic stats (limited) | ✅ MVP (adapter ready) |
+| Python Understat Service (`amosbastian/understat`) | xG, shots, coordinates (7 leagues) | MVP |
+| NestJS Understat adapter | Normalized domain entities for client dashboards | MVP |
 
 #### Future Integrations
 
@@ -432,7 +446,7 @@ After researching multiple football data providers, we discovered a **critical d
 
 ### API Selection: Understat + Adapter Pattern
 
-**Decision:** Use Understat as primary data source with adapter pattern for future expansion.
+**Decision:** Use Understat as primary data source via a dedicated Python service, while keeping the NestJS adapter pattern for future provider expansion.
 
 **Why Understat:**
 - ✅ Free - no cost to start
@@ -441,10 +455,10 @@ After researching multiple football data providers, we discovered a **critical d
 - ✅ Covers 7 major leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Russia, Greece)
 - ✅ Clean, well-documented JSON API
 
-**Stats API (Adapter Pattern):**
-- For MVP: Use free tiers of available APIs
-- Architecture: Design adapters so paid APIs can be swapped in later
-- Adapter interface supports: matches, teams, players, basic stats
+**Service + Adapter Pattern:**
+- For MVP: NestJS calls the internal Python Understat service
+- Architecture: Keep provider-agnostic IFootballAdapter in NestJS so paid APIs can be added later
+- Adapter interface supports: matches, teams, players, events, and stats
 
 **Understat Data Provided:**
 - Match dates and results
@@ -728,7 +742,7 @@ The MVP is considered successful when:
 
 1. A user can register and log in to the platform
 2. A user can ask a natural language query and receive a visual answer
-3. All four dashboards render correctly with mock data
+3. MVP dashboards render correctly with real data from the Python Understat service
 4. The data adapter can be swapped without code changes
 5. The application builds without errors
 
@@ -741,7 +755,7 @@ The MVP is considered successful when:
 | Passing Sonar | Radar chart shows directional passing |
 | Momentum Wave | Area chart shows xT over time |
 | Defensive Skeleton | Network graph shows defensive positions |
-| Data Adapter | Mock adapter returns realistic data |
+| Data Adapter | Understat-backed adapter returns normalized entities |
 | Query System | Query object correctly filters data |
 | User Auth | Registration and login functional |
 | Team/Player Selection | Dropdowns populate with data |
@@ -749,7 +763,7 @@ The MVP is considered successful when:
 
 ### Quality Indicators
 
-- **Performance:** Dashboard renders in < 2 seconds with mock data
+- **Performance:** Dashboard renders in < 2 seconds with real MVP data
 - **Usability:** New user can run first query in < 5 minutes
 - **Reliability:** No console errors during normal operation
 - **Maintainability:** New adapter can be added in < 1 hour
@@ -775,7 +789,8 @@ The MVP is considered successful when:
 - ✅ Set up React + Vite client application
 - ✅ Configure Tailwind CSS
 - ✅ Create shared TypeScript interfaces (IMatch, IEvent, IPlayer, ITeam, IFootballAdapter)
-- ✅ Implement football-data.org adapter on server
+- ✅ Implement Understat Python service (using `amosbastian/understat`)
+- ✅ Implement NestJS Understat adapter that consumes the Python service
 - ✅ Create AdapterFactory for adapter selection
 - ✅ Build FootballPitch SVG component with all markings
 - ✅ Set up React Query provider and Zustand store
@@ -854,7 +869,7 @@ The MVP is considered successful when:
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
-| **Real API Integration** | Connect football-data.org, StatsBomb | High |
+| **Additional API Integrations** | Connect football-data.org, StatsBomb, Opta via new adapters | High |
 | **Video Clips** | Link events to video highlight clips | High |
 | **NLP Improvement** | Better natural language understanding | Medium |
 | **Advanced Filters** | More granular query filters | Medium |
@@ -889,7 +904,7 @@ The MVP is considered successful when:
 **Description:** Free or affordable APIs may have incomplete or inaccurate event data, affecting dashboard accuracy.
 
 **Mitigation:**
-- Build with mock data as primary source initially
+- Use real Understat data from day one
 - Design adapters to handle missing fields gracefully
 - Document data quality expectations for each API
 - Plan for manual data correction tools in future
@@ -1002,23 +1017,20 @@ The MVP is considered successful when:
 ### API Data Flow
 
 ```
-Client                    Server                    External API
-  |                         |                           |
-  |--- GET /api/teams ---->|                           |
-  |                         |--- GET /teams ----------->
-  |                         |<-- Teams data ------------|
-  |<-- Teams (JSON) --------|                           |
-  |                         |                           |
-  |--- GET /api/matches -->|                           |
-  |                         |--- GET /matches --------->|
-  |                         |<-- Matches data ---------->|
-  |<-- Matches (JSON) -----|                           |
+Client               NestJS API               Python Understat Service         Understat
+  |                     |                                 |                       |
+  |--- GET /api/teams ->|                                 |                       |
+  |                     |--- GET /understat/teams ------->|                       |
+  |                     |                                 |--- fetch via lib ----->|
+  |                     |                                 |<-- raw understat ------|
+  |                     |<-- normalized teams ------------|                       |
+  |<-- Teams (JSON) ----|                                 |                       |
 ```
 
 ### No Mock Data
 
 This project uses **real API data from day one**. The adapter pattern allows:
-- Fetching from football-data.org initially
+- Fetching from Understat via the Python service initially
 - Swapping to StatsBomb/Opta when budget allows
 - All transformations happen on the server
 - Client receives consistent data format regardless of source
@@ -1044,3 +1056,6 @@ This project uses **real API data from day one**. The adapter pattern allows:
 ---
 
 *This PRD defines the MVP scope for The Generative Tactical Analyst. All features marked as "Out of Scope" are planned for future phases and require separate planning.*
+
+
+
