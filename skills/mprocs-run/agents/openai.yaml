@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mprocs Runner"
+  short_description: "Run and manage mprocs process workspaces from this repo"
+  default_prompt: "Set up or run mprocs for this project, including install steps, mprocs.yaml creation, and launch commands."
