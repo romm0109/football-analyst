@@ -1,0 +1,4 @@
+procs:
+  codex1: codex -p "hi"
+  codex2: codex -p "hi"
+  codex3: codex -p "hi"
